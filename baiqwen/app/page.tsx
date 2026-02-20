@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 
 interface Message {
@@ -156,6 +157,7 @@ export default function Home() {
   const [darkMode, setDarkMode] = useLocalStorage<Boolean>('darkMode', false)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)  // 用于停止请求
 
   // 消息自动滚动
   const messageEndRef = useRef<HTMLDivElement>(null)
@@ -169,9 +171,12 @@ export default function Home() {
 
   // 发送消息
   const sendMessage = async () => {
-    if (input.trim() === ''||isLoading) return
+    if (input.trim() === '' || isLoading) return
 
     setIsLoading(true)
+
+    // 创建新的 AbortController
+    abortControllerRef.current = new AbortController()
 
     const userMsg: Message = {
       role: 'user',
@@ -201,7 +206,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           messages: messagesToSend
-        })
+        }),
+        signal: abortControllerRef.current.signal  // 传入 signal
       })
       //也是web api
       const reader = response.body?.getReader()
@@ -215,6 +221,7 @@ export default function Home() {
       console.log('decoder', decoder)
       //累加内容
       let accumulatedContent = ''
+      let lastUpdateTime = 0
 
       while (true) {
         const { done, value } = await reader.read()
@@ -240,7 +247,11 @@ export default function Home() {
 
                 if (content) {
                   accumulatedContent += content
-                  updateLastMessage(currentConvId, accumulatedContent)
+                  const now = Date.now()
+                  if (now - lastUpdateTime > 75) {  // 50ms 更新一次
+                    updateLastMessage(currentConvId, accumulatedContent)
+                    lastUpdateTime = now
+                  }
                 }
               } catch (error) {
                 console.error('前端接收失败', error)
@@ -250,9 +261,22 @@ export default function Home() {
         }
       }
     } catch (e) {
-      console.error('后端发送失败', e)
+      // 如果是用户主动取消，不显示错误
+      if (e instanceof Error && e.name === 'AbortError') {
+        console.log('用户停止了生成')
+      } else {
+        console.error('后端发送失败', e)
+      }
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
+    }
+  }
+
+  // 停止生成
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
     }
   }
 
@@ -313,6 +337,9 @@ export default function Home() {
       <div className="flex-1 flex flex-col bg-white dark:bg-gray-800">
         {/* 顶部导航栏 */}
         <div className="h-16 border-b dark:border-gray-700 flex items-center justify-end px-6">
+          <Link href={`/about?darkMode=${darkMode}`} className="text-blue-500">
+            关于
+          </Link>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" >
@@ -338,8 +365,8 @@ export default function Home() {
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 dark:prose-invert'
                     } prose`}
                 >
-                
-                   <ReactMarkdown>{msg.content}</ReactMarkdown>
+
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               </div>
             ))
@@ -366,12 +393,16 @@ export default function Home() {
             />
 
             <button
-              onClick={sendMessage}
-              disabled={isLoading}
-              className={`px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-              ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={isLoading ? stopGeneration : sendMessage}
+              disabled={!isLoading && input.trim() === ''}
+              className={`px-6 py-2 rounded-lg text-white
+              ${isLoading
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-blue-500 hover:bg-blue-600'
+                }
+              ${!isLoading && input.trim() === '' ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-                {isLoading ? '发送中...' : '发送'}  
+              {isLoading ? '停止' : '发送'}
             </button>
           </div>
         </div>
