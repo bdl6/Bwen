@@ -1,9 +1,11 @@
 'use client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-export default function About() {
+import { Suspense } from 'react'
+
+function AboutContent() {
   const searchParams = useSearchParams()  
-  const darkMode = searchParams.get('darkMode') === 'true'  // 转换为布尔值
+  const darkMode = searchParams.get('darkMode') === 'true'
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -24,6 +26,13 @@ export default function About() {
         </div>
       </div>
     </div>
+  )
+}
 
+export default function About() {
+  return (
+    <Suspense fallback={<div>加载中...</div>}>
+      <AboutContent />
+    </Suspense>
   )
 }
