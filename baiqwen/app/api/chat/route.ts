@@ -66,23 +66,19 @@ export async function POST(request: Request) {
               // 去掉 "data:" 前缀，得到 JSON 字符串
               const jsonString = line.slice(5).trim()
               
-              // 调试：打印收到的原始数据
-              console.log('后端收到的行:', line)
-              
+             
               // 如果不是空行
               if (jsonString) {
                 try {
                   // 解析 JSON
                   const jsonData = JSON.parse(jsonString)
                   
-                  // 调试：打印解析后的数据
-                  console.log('解析后的数据:', jsonData)
+              
                   
                   // 提取 AI 生成的文字内容
                   const aiContent = jsonData.output?.choices?.[0]?.message?.content
                   
-                  // 调试：打印提取的内容
-                  console.log('提取的内容:', aiContent)
+               
                   
                   // 如果有内容，就发送给前端
                   if (aiContent) {
