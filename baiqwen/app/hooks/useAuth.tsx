@@ -34,7 +34,7 @@ export function useAuth() {
     // 返回值是一个 Promise，结构是：
     // { data: { user: User | null }, error: Error | null }
     
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
       // 解构赋值：从 data 中取出 user
       // 相当于：const user = response.data.user
       
@@ -54,7 +54,7 @@ export function useAuth() {
     // - session: 当前会话信息，包含 user 和 access_token
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (_event: any, session: any) => {
         // session?.user 的含义：
         // - 如果 session 存在，取 session.user
         // - 如果 session 是 null，返回 undefined

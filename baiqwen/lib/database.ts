@@ -50,11 +50,11 @@ export async function fetchConversations() {
   // ---------- 2. 只查询这些对话的消息（每个对话最新 20 条）----------
   
   // 提取对话 ID 列表
-  const conversationIds = conversations.map(conv => conv.id)
+  const conversationIds = conversations.map((conv: any) => conv.id)
   
   // 为每个对话查询最新 10 条消息
   // 注意：这里我们需要对每个对话分别查询，因为 Supabase 不支持按分组限制
-  const messagesPromises = conversationIds.map(async (convId) => {
+  const messagesPromises = conversationIds.map(async (convId: string) => {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -88,7 +88,7 @@ export async function fetchConversations() {
   })
   
   // 组装最终数据
-  return conversations.map(conv => {
+  return conversations.map((conv: any) => {
     const convMessages = messagesByConvId.get(conv.id) || []
     
     return {
@@ -301,7 +301,7 @@ export async function fetchMessages(
   // 返回前需要反转数组，因为我们要按时间正序显示
   // 数据库返回：[msg3, msg2, msg1]（最新在前）
   // 我们需要：[msg1, msg2, msg3]（最旧在前）
-  return (data || []).reverse().map(msg => ({
+  return (data || []).reverse().map((msg: any) => ({
     role: msg.role as 'user' | 'assistant',
     content: msg.content
   }))
