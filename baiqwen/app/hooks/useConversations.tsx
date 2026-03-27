@@ -12,8 +12,24 @@ export function useConversations() {
   const { user } = useAuth()  // 获取当前用户
 
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [currentConvId, setCurrentConvId] = useState<string | null>(null)
+  
+  // 使用 localStorage 持久化当前对话 ID
+  const [currentConvId, setCurrentConvId] = useState<string | null>(() => {
+    // 初始化时从 localStorage 读取
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('currentConvId')
+    }
+    return null
+  })
+  
   const [isLoading, setIsLoading] = useState(true)  // 加载状态（包括用户和对话）
+  
+  // 当 currentConvId 变化时，保存到 localStorage
+  useEffect(() => {
+    if (currentConvId) {
+      localStorage.setItem('currentConvId', currentConvId)
+    }
+  }, [currentConvId])
 
   const currentConv = conversations.find(c => c.id === currentConvId)
   const currentConvmessages = currentConv?.messages || []
@@ -39,12 +55,18 @@ export function useConversations() {
 
       setConversations(data)
 
-      // ---------- 4. 自动选择第一个对话 ----------
+      // ---------- 4. 智能选择对话 ----------
 
-      // 如果当前没有选中对话，且数据库有对话，选择第一个
-      // 这样用户登录后会自动显示最近的对话
-      if (!currentConvId && data.length > 0) {
-        setCurrentConvId(data[0].id)
+      // 优先级：
+      // 1. 如果 localStorage 中有保存的对话 ID，且该对话存在，选择它
+      // 2. 否则，选择第一个对话
+      const savedConvId = localStorage.getItem('currentConvId')
+      const savedConvExists = data.some(c => c.id === savedConvId)
+      
+      if (savedConvExists) {
+        setCurrentConvId(savedConvId)  // 恢复之前选中的对话
+      } else if (data.length > 0) {
+        setCurrentConvId(data[0].id)   // 选择第一个对话
       }
 
     } catch (error) {
@@ -55,7 +77,7 @@ export function useConversations() {
       setIsLoading(false)  // 加载完成
     }
   }
-
+ 
   // ---------- 监听用户登录状态 ----------
 
   // 当 user 变化时（登录/登出），重新加载对话

@@ -41,6 +41,7 @@ export default function Home() {
   // 消息自动滚动
   const messageEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLength = useRef(currentConvmessages.length)
+  const isInitialLoad = useRef(true)  // 标记是否是首次加载
   
   const scrollToBottom = () => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -50,20 +51,35 @@ export default function Home() {
     const currentLength = currentConvmessages.length
     const prevLength = prevMessagesLength.current
     
-    // 只有在消息数量增加时才滚动（排除无限滚动加载的情况）
-    // 无限滚动是在数组开头插入，但这里我们检测的是总数变化
-    // 更好的方式：只在发送新消息时滚动（消息在末尾添加）
-    if (currentLength > prevLength) {
-      // 检查是否是在末尾添加的消息（发送新消息）
-      // 如果是在开头添加（无限滚动），不滚动
-      const isAppendingAtEnd = currentLength - prevLength <= 2  // 用户消息+AI消息
-      if (isAppendingAtEnd) {
+    // 情况 1：首次加载（从数据库加载消息）
+    if (isInitialLoad.current && currentLength > 0) {
+      requestAnimationFrame(() => {
         scrollToBottom()
+      })
+      isInitialLoad.current = false
+      prevMessagesLength.current = currentLength
+      return
+    }
+    
+    // 情况 2：发送新消息（增加 1-2 条）
+    if (currentLength > prevLength) {
+      const diff = currentLength - prevLength
+      if (diff <= 2) {  // 用户消息 + AI 消息
+        requestAnimationFrame(() => {
+          scrollToBottom()
+        })
       }
+      // 情况 3：无限滚动加载历史消息（增加 10 条）
+      // diff > 2 时不滚动
     }
     
     prevMessagesLength.current = currentLength
   }, [currentConvmessages])
+  
+  // 切换对话时，重置首次加载标记
+  useEffect(() => {
+    isInitialLoad.current = true
+  }, [currentConvId])
   
   // 路由鉴权：未登录则跳转到登录页
   useEffect(() => {
@@ -146,7 +162,16 @@ export default function Home() {
 
       //累加内容
       let accumulatedContent = ''
-      let lastUpdateTime = 0
+      let animationFrameId: number | null = null;
+      let pendingContent = '';
+
+      const updateContent = () => {
+        if (pendingContent) {
+          updateLocalLastMessage(currentConvId, pendingContent);
+          accumulatedContent = pendingContent;
+        }
+        animationFrameId = null;
+      };
 
       while (true) {
         const { done, value } = await reader.read()
@@ -171,11 +196,11 @@ export default function Home() {
                 const content = data.content
 
                 if (content) {
-                  accumulatedContent += content
-                  const now = Date.now()
-                  if (now - lastUpdateTime > 75) {  // 50ms 更新一次
-                    updateLocalLastMessage(currentConvId, accumulatedContent)
-                    lastUpdateTime = now
+                  pendingContent = accumulatedContent + content;
+                  
+                  // 如果没有待处理的动画帧，则创建一个新的
+                  if (animationFrameId === null) {
+                    animationFrameId = requestAnimationFrame(updateContent);
                   }
                 }
               } catch (error) {
@@ -184,6 +209,12 @@ export default function Home() {
             }
           }
         }
+      }
+
+      // 等待最后一个动画帧完成（如果有）
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        updateLocalLastMessage(currentConvId, pendingContent);
       }
 
       // ========== 关键：流式输出结束后，保存完整内容到数据库 ==========

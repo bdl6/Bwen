@@ -7,6 +7,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.DASHSCOPE_API_KEY
 
   // 3. 调用通义千问 API
+  // request.signal：前端调用 abort() 时，这个 signal 同步触发，取消后端请求，避免浪费 token
   const dashscopeResponse = await fetch(
     'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
     {
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${apiKey}`,
         'X-DashScope-SSE': 'enable'  // 开启 SSE 流式输出
       },
+      signal: request.signal,  // 前端 abort 时同步取消对千问的请求
       body: JSON.stringify({
         model: 'qwen-turbo',
         input: {
